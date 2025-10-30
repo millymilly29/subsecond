@@ -1,0 +1,1088 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SUBSECOND // Ultra-Low Latency Voice Streaming Engine & Barge-In Studio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Bebas+Neue&family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --void: #050608;
+    --surface: #0b0d10;
+    --surface-2: #12151a;
+    --surface-3: #181d24;
+    --border: rgba(255, 255, 255, 0.07);
+    --border-glow: rgba(120, 220, 232, 0.25);
+    --fg: #e6ece8;
+    --fg-muted: #728078;
+    --fg-dim: #3f4a44;
+
+    --neon-cyan: #78dce8;
+    --neon-green: #5dff9e;
+    --neon-pink: #ff6188;
+    --neon-amber: #ffb454;
+
+    --glow-cyan: 0 0 20px rgba(120, 220, 232, 0.25);
+    --glow-pink: 0 0 25px rgba(255, 97, 136, 0.35);
+
+    --mono: 'Space Mono', monospace;
+    --sans: 'Inter', sans-serif;
+    --display: 'Archivo Black', sans-serif;
+    --num: 'Bebas Neue', sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; overflow: hidden; background: var(--void); color: var(--fg); font-family: var(--mono); font-size: 12px; }
+
+  body {
+    background-image:
+      radial-gradient(ellipse 70% 50% at 50% -10%, rgba(120, 220, 232, 0.03) 0%, transparent 70%),
+      repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.012) 0 1px, transparent 1px 24px),
+      repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.012) 0 1px, transparent 1px 24px);
+    display: flex;
+    flex-direction: column;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Header */
+  header {
+    height: 52px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 24px;
+    background: rgba(11, 13, 16, 0.85);
+    backdrop-filter: blur(12px);
+    z-index: 100;
+  }
+  .brand-block {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .brand-title {
+    font-family: var(--display);
+    font-size: 14px;
+    letter-spacing: -0.01em;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    text-transform: uppercase;
+  }
+  .status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(120, 220, 232, 0.1);
+    border: 1px solid rgba(120, 220, 232, 0.25);
+    color: var(--neon-cyan);
+    font-size: 10px;
+    padding: 3px 8px;
+    border-radius: 3px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .pulse-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--neon-cyan);
+    box-shadow: 0 0 8px var(--neon-cyan);
+    animation: pulse 1.6s infinite ease-in-out;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.3; transform: scale(0.85); }
+  }
+
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .hud-tag {
+    font-size: 10px;
+    color: var(--fg-muted);
+    border: 1px solid var(--border);
+    padding: 4px 8px;
+    border-radius: 3px;
+    background: var(--surface-2);
+  }
+  .hud-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--fg-muted);
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 5px 12px;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: all 0.15s ease;
+  }
+  .hud-btn:hover {
+    color: #fff;
+    border-color: rgba(255, 255, 255, 0.25);
+  }
+  .hud-btn.active {
+    color: var(--neon-cyan);
+    border-color: var(--neon-cyan);
+  }
+
+  /* Main Layout */
+  main {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 320px 1fr 360px;
+    overflow: hidden;
+  }
+
+  /* LEFT SIDEBAR: Scenarios & Utterances */
+  .sidebar {
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .panel-header {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: rgba(255, 255, 255, 0.015);
+  }
+  .panel-title {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--fg-muted);
+  }
+
+  .scenarios-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .scenario-card {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    padding: 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    text-align: left;
+  }
+  .scenario-card:hover {
+    border-color: rgba(255, 255, 255, 0.25);
+    background: var(--surface-3);
+    transform: translateX(2px);
+  }
+  .scenario-card.active {
+    border-color: var(--neon-cyan);
+    background: rgba(120, 220, 232, 0.06);
+  }
+  .scenario-tag {
+    font-size: 9px;
+    font-weight: 700;
+    color: var(--neon-cyan);
+    text-transform: uppercase;
+    margin-bottom: 4px;
+    display: flex;
+    justify-content: space-between;
+  }
+  .scenario-phrase {
+    font-size: 11px;
+    color: #fff;
+    line-height: 16px;
+    margin-bottom: 6px;
+  }
+  .scenario-intent {
+    font-size: 9px;
+    color: var(--fg-muted);
+  }
+
+  /* Mic Controls Card */
+  .mic-control-box {
+    padding: 14px;
+    border-top: 1px solid var(--border);
+    background: var(--surface-2);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .mic-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--fg-muted);
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 700;
+    padding: 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: all 0.15s ease;
+  }
+  .mic-btn:hover { color: #fff; border-color: rgba(255, 255, 255, 0.25); }
+  .mic-btn.recording {
+    border-color: var(--neon-pink);
+    color: var(--neon-pink);
+    background: rgba(255, 97, 136, 0.1);
+  }
+
+  /* CENTER STAGE: Oscilloscope, Barge-In Button & Speech Stream */
+  .stage {
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    padding: 20px;
+    gap: 16px;
+    background: var(--void);
+  }
+
+  /* Oscilloscope Canvas Card */
+  .scope-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  .scope-header {
+    background: var(--surface-2);
+    padding: 8px 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--border);
+  }
+  .scope-title {
+    font-size: 10px;
+    color: var(--fg-muted);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .scope-canvas-wrap {
+    height: 180px;
+    position: relative;
+    background: #030406;
+  }
+  canvas#scopeCanvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+  .scope-watermark {
+    position: absolute;
+    bottom: 8px;
+    right: 12px;
+    font-size: 9px;
+    color: rgba(255, 255, 255, 0.15);
+    letter-spacing: 0.1em;
+  }
+
+  /* Barge-In Big Interactive Trigger */
+  .bargein-action-bar {
+    display: grid;
+    grid-template-columns: 1fr 180px;
+    gap: 12px;
+    align-items: center;
+  }
+  .bargein-btn {
+    background: rgba(255, 97, 136, 0.12);
+    border: 1px solid var(--neon-pink);
+    color: var(--neon-pink);
+    font-family: var(--display);
+    font-size: 14px;
+    letter-spacing: 0.04em;
+    padding: 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    text-transform: uppercase;
+    transition: all 0.15s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+  }
+  .bargein-btn:hover {
+    background: var(--neon-pink);
+    color: #050608;
+    box-shadow: var(--glow-pink);
+    transform: translateY(-1px);
+  }
+  .bargein-btn:active {
+    transform: scale(0.98);
+  }
+  .hotkey-hint {
+    font-family: var(--mono);
+    font-size: 9px;
+    background: rgba(0, 0, 0, 0.3);
+    padding: 3px 6px;
+    border-radius: 3px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+  .speak-btn {
+    background: var(--neon-cyan);
+    color: #050608;
+    border: none;
+    font-family: var(--display);
+    font-size: 12px;
+    letter-spacing: 0.04em;
+    padding: 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    text-transform: uppercase;
+    transition: all 0.15s ease;
+    text-align: center;
+  }
+  .speak-btn:hover {
+    box-shadow: var(--glow-cyan);
+    transform: translateY(-1px);
+  }
+
+  /* Live Conversational Feed Box */
+  .convo-feed {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .bubble-human {
+    background: var(--surface-2);
+    border-left: 3px solid var(--neon-cyan);
+    padding: 12px;
+    border-radius: 4px;
+  }
+  .bubble-ai {
+    background: rgba(93, 255, 158, 0.05);
+    border-left: 3px solid var(--neon-green);
+    padding: 12px;
+    border-radius: 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .bubble-meta {
+    font-size: 9px;
+    color: var(--fg-muted);
+    display: flex;
+    justify-content: space-between;
+  }
+  .bubble-text {
+    font-size: 12px;
+    line-height: 18px;
+    color: #fff;
+  }
+
+  /* RIGHT SIDEBAR: Telemetry & Speculative Tree */
+  .telemetry-rail {
+    background: var(--surface);
+    border-left: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    padding: 16px;
+    gap: 18px;
+  }
+
+  /* Speculative Branch Card */
+  .spec-card {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .spec-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--fg-muted);
+    text-transform: uppercase;
+  }
+  .spec-branch {
+    background: var(--surface-3);
+    border: 1px solid var(--border);
+    padding: 10px;
+    border-radius: 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .spec-branch.active-match {
+    border-color: var(--neon-green);
+    background: rgba(93, 255, 158, 0.06);
+  }
+  .spec-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 10px;
+  }
+  .spec-bar-wrap {
+    height: 4px;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-top: 4px;
+  }
+  .spec-bar-fill {
+    height: 100%;
+    background: var(--neon-green);
+    width: 0%;
+    transition: width 0.3s ease;
+  }
+
+  /* Waterfall Latency Card */
+  .waterfall-card {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .total-score-wrap {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  .score-num {
+    font-family: var(--num);
+    font-size: 52px;
+    line-height: 0.9;
+    color: var(--neon-green);
+  }
+  .score-sub {
+    font-size: 9px;
+    color: var(--fg-muted);
+    text-transform: uppercase;
+  }
+
+  .wf-row {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    font-size: 10px;
+  }
+  .wf-meta {
+    display: flex;
+    justify-content: space-between;
+    color: var(--fg-muted);
+  }
+  .wf-bar-wrap {
+    height: 6px;
+    background: rgba(255, 255, 255, 0.06);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .wf-fill {
+    height: 100%;
+    background: var(--neon-cyan);
+    transition: width 0.3s ease;
+  }
+
+  /* Benchmark Stats */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .stat-box {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    padding: 10px;
+    border-radius: 4px;
+    text-align: center;
+  }
+  .stat-val {
+    font-family: var(--num);
+    font-size: 26px;
+    line-height: 1;
+    color: #fff;
+  }
+  .stat-lbl {
+    font-size: 8px;
+    color: var(--fg-muted);
+    text-transform: uppercase;
+    margin-top: 4px;
+  }
+
+  /* Backlink to portfolio */
+  .back-link {
+    font-size: 10px;
+    color: var(--fg-muted);
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: color 0.15s ease;
+  }
+  .back-link:hover { color: #fff; }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<header>
+  <div class="brand-block">
+    <a href="../PORTFOLIO/index-v2.html" class="back-link">← PORTFOLIO</a>
+    <div class="brand-title">
+      <span class="status-pill"><span class="pulse-dot"></span> VAD: ACTIVE</span>
+      SUBSECOND // ACOUSTIC STREAMING LAB
+    </div>
+  </div>
+
+  <div class="header-actions">
+    <span class="hud-tag">SLA BUDGET: &lt;300MS</span>
+    <button id="toggleAudioMute" class="hud-btn active">OUTPUT: UNMUTED</button>
+  </div>
+</header>
+
+<!-- Main Workspace -->
+<main>
+  <!-- LEFT: Scenario Presets -->
+  <aside class="sidebar">
+    <div class="panel-header">
+      <span class="panel-title">UTTERANCE PRESETS</span>
+      <span style="font-size: 9px; color: var(--fg-muted);">5 DOMAINS</span>
+    </div>
+
+    <div class="scenarios-list" id="scenariosList">
+      <!-- Injected via JavaScript -->
+    </div>
+
+    <div class="mic-control-box">
+      <button id="micToggleBtn" class="mic-btn">
+        <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:currentColor;"></span>
+        <span id="micBtnText">LIVE MICROPHONE</span>
+      </button>
+      <div style="font-size: 9px; color: var(--fg-muted); line-height: 14px; text-align: center;">
+        Auto-adapts noise floor &amp; ring pre-roll.
+      </div>
+    </div>
+  </aside>
+
+  <!-- CENTER: Audio Oscilloscope & Barge-In Playground -->
+  <section class="stage">
+    <!-- Scope Card -->
+    <div class="scope-card">
+      <div class="scope-header">
+        <span class="scope-title">REAL-TIME TIME-DOMAIN OSCILLOSCOPE &amp; FFT SPECTROGRAM</span>
+        <span id="audioStatusTag" style="font-size: 9px; color: var(--neon-cyan);">STANDBY // 24.0 kHz</span>
+      </div>
+      <div class="scope-canvas-wrap">
+        <canvas id="scopeCanvas"></canvas>
+        <div class="scope-watermark">24kHz PCM // PHASE CANCEL MONITOR</div>
+      </div>
+    </div>
+
+    <!-- Barge-In Action Strip -->
+    <div class="bargein-action-bar">
+      <button id="bargeInBtn" class="bargein-btn" title="Press to cancel bot playback immediately">
+        <span>⚡ INTERRUPT // BARGE-IN</span>
+        <span class="hotkey-hint">[SPACEBAR]</span>
+      </button>
+      <button id="runTurnBtn" class="speak-btn">
+        DISPATCH TURN ▶
+      </button>
+    </div>
+
+    <!-- Conversational Feed -->
+    <div class="convo-feed">
+      <div class="panel-header" style="background:none; padding:0 0 8px 0;">
+        <span class="panel-title">LIVE CONVERSATIONAL STREAM</span>
+        <span id="turnStatusBadge" style="color: var(--neon-green); font-size: 9px; font-weight:700;">IDLE</span>
+      </div>
+
+      <div class="bubble-human">
+        <div class="bubble-meta">
+          <span>HUMAN SPEAKER</span>
+          <span id="humanVadTiming">VAD ONSET: 34ms</span>
+        </div>
+        <div class="bubble-text" id="humanSpeechText">"Where is my order #4819 from yesterday?"</div>
+      </div>
+
+      <div class="bubble-ai">
+        <div class="bubble-meta">
+          <span>SUBSECOND VOICE AGENT (SPECULATIVE BRANCH)</span>
+          <span id="aiTtftTiming" style="color: var(--neon-green);">PERCEIVED TTFT: 85ms</span>
+        </div>
+        <div class="bubble-text" id="aiSpeechText">
+          "Checking your tracking status in the logistics system right now."
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- RIGHT: Speculative Tree & Latency Budget Waterfall -->
+  <aside class="telemetry-rail">
+    <!-- Speculative Branch Card -->
+    <div class="spec-card">
+      <div class="spec-head">
+        <span>SPECULATIVE BRANCHING</span>
+        <span id="specHitBadge" style="color: var(--neon-green);">WARM HIT</span>
+      </div>
+
+      <div class="spec-branch active-match" id="branchBox">
+        <div class="spec-row">
+          <span style="font-weight:700; color:#fff;" id="branchIntent">ORDER_TRACKING</span>
+          <span style="color:var(--neon-green);" id="branchConf">92% CONF</span>
+        </div>
+        <div style="font-size: 9px; color: var(--fg-muted);" id="branchLead">
+          "Checking your tracking status in the logistics system..."
+        </div>
+        <div class="spec-bar-wrap">
+          <div class="spec-bar-fill" id="branchBar" style="width: 92%;"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Latency Waterfall Card -->
+    <div class="waterfall-card">
+      <div class="total-score-wrap">
+        <div>
+          <div class="score-num" id="totalLatencyNum">235</div>
+          <div class="score-sub">MILLISECONDS PERCEIVED</div>
+        </div>
+        <div style="text-align:right;">
+          <span style="background:rgba(93,255,158,0.15); color:var(--neon-green); border:1px solid var(--neon-green); padding:4px 8px; font-size:9px; font-weight:700; border-radius:3px;">
+            SLA MET &lt;300MS
+          </span>
+        </div>
+      </div>
+
+      <!-- Stage 1 -->
+      <div class="wf-row">
+        <div class="wf-meta">
+          <span>1. VAD Turn End Cutoff</span>
+          <span id="wfVadVal">35 ms</span>
+        </div>
+        <div class="wf-bar-wrap">
+          <div class="wf-fill" id="wfVadBar" style="width: 15%; background: var(--neon-cyan);"></div>
+        </div>
+      </div>
+
+      <!-- Stage 2 -->
+      <div class="wf-row">
+        <div class="wf-meta">
+          <span>2. Streaming ASR Emit</span>
+          <span id="wfAsrVal">55 ms</span>
+        </div>
+        <div class="wf-bar-wrap">
+          <div class="wf-fill" id="wfAsrBar" style="width: 23%; background: var(--neon-cyan);"></div>
+        </div>
+      </div>
+
+      <!-- Stage 3 -->
+      <div class="wf-row">
+        <div class="wf-meta">
+          <span>3. Speculative LLM TTFT</span>
+          <span id="wfTtftVal">85 ms</span>
+        </div>
+        <div class="wf-bar-wrap">
+          <div class="wf-fill" id="wfTtftBar" style="width: 36%; background: var(--neon-green);"></div>
+        </div>
+      </div>
+
+      <!-- Stage 4 -->
+      <div class="wf-row">
+        <div class="wf-meta">
+          <span>4. Audio Chunk Synthesis</span>
+          <span id="wfTtsVal">45 ms</span>
+        </div>
+        <div class="wf-bar-wrap">
+          <div class="wf-fill" id="wfTtsBar" style="width: 19%; background: var(--neon-cyan);"></div>
+        </div>
+      </div>
+
+      <!-- Stage 5 -->
+      <div class="wf-row">
+        <div class="wf-meta">
+          <span>5. Speaker DAC Playback</span>
+          <span id="wfDacVal">15 ms</span>
+        </div>
+        <div class="wf-bar-wrap">
+          <div class="wf-fill" id="wfDacBar" style="width: 7%; background: var(--neon-cyan);"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Statistical Percentiles -->
+    <div class="stats-grid">
+      <div class="stat-box">
+        <div class="stat-val" id="p50Val">238ms</div>
+        <div class="stat-lbl">P50 Median</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-val" id="sub300Val">85%</div>
+        <div class="stat-lbl">Sub-300ms SLA</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-val" id="p95Val">970ms</div>
+        <div class="stat-lbl">P95 Worst-Case</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-val" id="bargeinLatencyVal">&lt;2ms</div>
+        <div class="stat-lbl">Barge-In Cutoff</div>
+      </div>
+    </div>
+  </aside>
+</main>
+
+<!-- Inlined standalone engine dependencies -->
+<script src="engine/vad-processor.js"></script>
+<script src="engine/speculative-engine.js"></script>
+<script src="engine/latency-budget.js"></script>
+<script src="engine/audio-streamer.js"></script>
+
+<script>
+  // Conversational Presets
+  const SCENARIOS = [
+    {
+      id: 'SCN-01',
+      category: 'LOGISTICS',
+      title: 'Order Status & Tracking',
+      userUtterance: 'Where is my order #4819 from yesterday?',
+      partialPrefix: 'where is my order',
+      intent: 'ORDER_TRACKING',
+      confidence: 92,
+      agentResponse: 'Checking your tracking status in the logistics system right now.'
+    },
+    {
+      id: 'SCN-02',
+      category: 'DEVOPS / SRE',
+      title: 'Critical Production Outage',
+      userUtterance: 'We have a critical priority 1 outage, database is down!',
+      partialPrefix: 'we have a critical outage database down',
+      intent: 'CRITICAL_INCIDENT',
+      confidence: 96,
+      agentResponse: 'Alerting on-call engineering leads and opening an emergency incident bridge.'
+    },
+    {
+      id: 'SCN-03',
+      category: 'HEALTHCARE',
+      title: 'Emergency Medical Triage',
+      userUtterance: 'Patient has severe chest pain, calling an ambulance!',
+      partialPrefix: 'patient has severe chest pain',
+      intent: 'MEDICAL_EMERGENCY',
+      confidence: 98,
+      agentResponse: 'Dispatching paramedic unit to your GPS location immediately. Please stay on the line.'
+    },
+    {
+      id: 'SCN-04',
+      category: 'ECOMMERCE',
+      title: 'Return Policy Inquiry',
+      userUtterance: 'How do I return my damaged shoes for a refund?',
+      partialPrefix: 'how do i return',
+      intent: 'RETURNS_REFUND',
+      confidence: 88,
+      agentResponse: 'You can return any item within 30 days of delivery using our prepaid portal.'
+    },
+    {
+      id: 'SCN-05',
+      category: 'UNPREDICTED',
+      title: 'Fallback Miss (Standard Pipeline)',
+      userUtterance: 'Can you write a haiku about quantum physics?',
+      partialPrefix: 'can you write a haiku',
+      intent: 'GENERIC_FALLBACK',
+      confidence: 15,
+      agentResponse: 'Quantum particles in haze / Wave and matter dancing free / Lost in unobserved.'
+    }
+  ];
+
+  // Engine Instances
+  const vad = new VADProcessor();
+  const spec = new SpeculativeEngine();
+  const budget = new LatencyBudget();
+  const streamer = new AudioStreamer({
+    onPlaybackStarted: (evt) => {
+      turnStatusBadge.textContent = 'AGENT SPEAKING';
+      turnStatusBadge.style.color = 'var(--neon-green)';
+      audioStatusTag.textContent = 'STREAMING AUDIO BUFFER // 24kHz';
+      audioStatusTag.style.color = 'var(--neon-green)';
+    },
+    onPlaybackEnded: (evt) => {
+      turnStatusBadge.textContent = 'TURN COMPLETED';
+      turnStatusBadge.style.color = 'var(--fg-muted)';
+      audioStatusTag.textContent = 'STANDBY // 24.0 kHz';
+      audioStatusTag.style.color = 'var(--neon-cyan)';
+    },
+    onBargeInCancelled: (evt) => {
+      turnStatusBadge.textContent = `INTERRUPTED (${evt.cancelLatencyMs}ms)`;
+      turnStatusBadge.style.color = 'var(--neon-pink)';
+      audioStatusTag.textContent = `BARGE-IN CUTOFF // ${evt.cancelLatencyMs}ms ANTI-POP FLUSH`;
+      audioStatusTag.style.color = 'var(--neon-pink)';
+      bargeinLatencyVal.textContent = `${evt.cancelLatencyMs}ms`;
+    }
+  });
+
+  // DOM Elements
+  const scenariosList = document.getElementById('scenariosList');
+  const humanSpeechText = document.getElementById('humanSpeechText');
+  const aiSpeechText = document.getElementById('aiSpeechText');
+  const humanVadTiming = document.getElementById('humanVadTiming');
+  const aiTtftTiming = document.getElementById('aiTtftTiming');
+  const runTurnBtn = document.getElementById('runTurnBtn');
+  const bargeInBtn = document.getElementById('bargeInBtn');
+  const micToggleBtn = document.getElementById('micToggleBtn');
+  const micBtnText = document.getElementById('micBtnText');
+  const toggleAudioMute = document.getElementById('toggleAudioMute');
+  const branchIntent = document.getElementById('branchIntent');
+  const branchConf = document.getElementById('branchConf');
+  const branchLead = document.getElementById('branchLead');
+  const branchBar = document.getElementById('branchBar');
+  const specHitBadge = document.getElementById('specHitBadge');
+  const totalLatencyNum = document.getElementById('totalLatencyNum');
+  const audioStatusTag = document.getElementById('audioStatusTag');
+  const turnStatusBadge = document.getElementById('turnStatusBadge');
+  const bargeinLatencyVal = document.getElementById('bargeinLatencyVal');
+  const p50Val = document.getElementById('p50Val');
+  const p95Val = document.getElementById('p95Val');
+  const sub300Val = document.getElementById('sub300Val');
+  const canvas = document.getElementById('scopeCanvas');
+  const ctx = canvas.getContext('2d');
+
+  let activeScenario = SCENARIOS[0];
+  let isMuted = false;
+  let isMicActive = false;
+  let micStream = null;
+
+  // Render Scenarios in Sidebar
+  function renderScenarios() {
+    scenariosList.innerHTML = '';
+    SCENARIOS.forEach((scn, idx) => {
+      const card = document.createElement('div');
+      card.className = `scenario-card ${idx === 0 ? 'active' : ''}`;
+      card.innerHTML = `
+        <div class="scenario-tag">
+          <span>${scn.category}</span>
+          <span>${scn.id}</span>
+        </div>
+        <div class="scenario-phrase">"${scn.userUtterance}"</div>
+        <div class="scenario-intent">Branch: ${scn.intent} (${scn.confidence}%)</div>
+      `;
+      card.addEventListener('click', () => {
+        document.querySelectorAll('.scenario-card').forEach(c => c.classList.remove('active'));
+        card.classList.add('active');
+        activeScenario = scn;
+        loadScenario(scn);
+      });
+      scenariosList.appendChild(card);
+    });
+  }
+
+  function loadScenario(scn) {
+    humanSpeechText.textContent = `"${scn.userUtterance}"`;
+    aiSpeechText.textContent = `"${scn.agentResponse}"`;
+    branchIntent.textContent = scn.intent;
+    branchConf.textContent = `${scn.confidence}% CONF`;
+    branchLead.textContent = `"${scn.agentResponse}"`;
+    branchBar.style.width = `${scn.confidence}%`;
+
+    const isHit = scn.confidence > 50;
+    if (isHit) {
+      specHitBadge.textContent = 'WARM HIT';
+      specHitBadge.style.color = 'var(--neon-green)';
+      aiTtftTiming.textContent = 'PERCEIVED TTFT: 85ms';
+      aiTtftTiming.style.color = 'var(--neon-green)';
+      totalLatencyNum.textContent = '235';
+      totalLatencyNum.style.color = 'var(--neon-green)';
+    } else {
+      specHitBadge.textContent = 'FALLBACK MISS';
+      specHitBadge.style.color = 'var(--neon-pink)';
+      aiTtftTiming.textContent = 'PERCEIVED TTFT: 580ms';
+      aiTtftTiming.style.color = 'var(--neon-pink)';
+      totalLatencyNum.textContent = '990';
+      totalLatencyNum.style.color = 'var(--neon-pink)';
+    }
+  }
+
+  // Execute Turn Simulation
+  function dispatchTurn() {
+    const isHit = activeScenario.confidence > 50;
+
+    // 1. Partial transcript ingested
+    spec.ingestPartialTranscript(activeScenario.partialPrefix);
+
+    // 2. Commit final transcript
+    const result = spec.commitFinalTranscript(activeScenario.userUtterance);
+
+    // 3. Record in latency budget
+    const turn = budget.recordTurn({ isSpeculativeHit: isHit });
+
+    // 4. Update UI Metrics
+    totalLatencyNum.textContent = turn.totalLatency;
+    totalLatencyNum.style.color = turn.targetMet ? 'var(--neon-green)' : 'var(--neon-pink)';
+
+    document.getElementById('wfVadVal').textContent = `${turn.waterfall.vadDelay} ms`;
+    document.getElementById('wfAsrVal').textContent = `${turn.waterfall.sttEmit} ms`;
+    document.getElementById('wfTtftVal').textContent = `${turn.waterfall.ttft} ms`;
+    document.getElementById('wfTtsVal').textContent = `${turn.waterfall.ttsChunk} ms`;
+    document.getElementById('wfDacVal').textContent = `${turn.waterfall.outputBuffer} ms`;
+
+    // 5. Play Voice Output via Web Audio Formant Synthesizer
+    if (!isMuted) {
+      streamer.playUtterance(activeScenario.agentResponse, 2.5);
+    }
+  }
+
+  // Barge-In Interruption Trigger
+  function triggerBargeIn() {
+    const interrupted = streamer.cancelBargeIn();
+    if (interrupted) {
+      bargeInBtn.style.transform = 'scale(0.96)';
+      setTimeout(() => { bargeInBtn.style.transform = ''; }, 100);
+    }
+  }
+
+  // Canvas Oscilloscope Animation Loop
+  function drawScope() {
+    requestAnimationFrame(drawScope);
+
+    const width = canvas.width = canvas.parentElement.clientWidth;
+    const height = canvas.height = canvas.parentElement.clientHeight;
+
+    ctx.fillStyle = '#030406';
+    ctx.fillRect(0, 0, width, height);
+
+    // Grid lines
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.03)';
+    ctx.lineWidth = 1;
+    for (let x = 0; x < width; x += 40) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, height);
+      ctx.stroke();
+    }
+    for (let y = 0; y < height; y += 30) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(width, y);
+      ctx.stroke();
+    }
+
+    const isPlaying = streamer.isPlaying;
+    const timeData = streamer.getTimeDomainData();
+    const freqData = streamer.getFrequencyData();
+
+    // 1. Draw FFT Frequency Bars in background
+    const barWidth = (width / freqData.length) * 2.2;
+    for (let i = 0; i < freqData.length; i++) {
+      const barHeight = (freqData[i] / 255) * height * 0.7;
+      ctx.fillStyle = isPlaying ? 'rgba(120, 220, 232, 0.12)' : 'rgba(255, 255, 255, 0.02)';
+      ctx.fillRect(i * barWidth, height - barHeight, barWidth - 1, barHeight);
+    }
+
+    // 2. Draw Waveform Oscilloscope line
+    ctx.lineWidth = isPlaying ? 2.2 : 1.2;
+    ctx.strokeStyle = isPlaying ? '#78dce8' : 'rgba(120, 220, 232, 0.35)';
+    if (isPlaying) {
+      ctx.shadowBlur = 10;
+      ctx.shadowColor = '#78dce8';
+    } else {
+      ctx.shadowBlur = 0;
+    }
+
+    ctx.beginPath();
+    const sliceWidth = width / timeData.length;
+    let x = 0;
+
+    for (let i = 0; i < timeData.length; i++) {
+      let v = timeData[i] / 128.0;
+      if (!isPlaying) {
+        // Idle ambient subtle vibration
+        v = 1.0 + Math.sin(i * 0.1 + Date.now() * 0.003) * 0.03;
+      }
+      const y = (v * height) / 2;
+
+      if (i === 0) {
+        ctx.moveTo(x, y);
+      } else {
+        ctx.lineTo(x, y);
+      }
+      x += sliceWidth;
+    }
+
+    ctx.lineTo(width, height / 2);
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+  }
+
+  // Event Listeners
+  runTurnBtn.addEventListener('click', () => {
+    dispatchTurn();
+  });
+
+  bargeInBtn.addEventListener('click', () => {
+    triggerBargeIn();
+  });
+
+  window.addEventListener('keydown', (e) => {
+    if (e.code === 'Space' && e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
+      e.preventDefault();
+      triggerBargeIn();
+    }
+  });
+
+  toggleAudioMute.addEventListener('click', () => {
+    isMuted = !isMuted;
+    toggleAudioMute.textContent = isMuted ? 'OUTPUT: MUTED' : 'OUTPUT: UNMUTED';
+    toggleAudioMute.classList.toggle('active', !isMuted);
+    if (isMuted) streamer.cancelBargeIn();
+  });
+
+  micToggleBtn.addEventListener('click', async () => {
+    if (!isMicActive) {
+      try {
+        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+          micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          isMicActive = true;
+          micBtnText.textContent = 'MIC: STREAMING';
+          micToggleBtn.classList.add('recording');
+        } else {
+          alert('Microphone API not available in this environment. Using simulated acoustic frames.');
+        }
+      } catch (err) {
+        alert('Microphone access denied. Operating in simulated acoustic mode.');
+      }
+    } else {
+      if (micStream) {
+        micStream.getTracks().forEach(t => t.stop());
+      }
+      isMicActive = false;
+      micBtnText.textContent = 'LIVE MICROPHONE';
+      micToggleBtn.classList.remove('recording');
+    }
+  });
+
+  // Init
+  renderScenarios();
+  loadScenario(SCENARIOS[0]);
+  drawScope();
+</script>
+</body>
+</html>
