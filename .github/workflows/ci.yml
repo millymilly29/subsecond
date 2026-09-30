@@ -5,12 +5,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-python@v5
         with:
-          node-version: 22
+          python-version: '3.11'
       - run: |
-          if [ -f "package.json" ]; then
-            npm test || node tests/*.js || node test.js || true
-          else
-            node tests/*.js || true
+          if [ -f "requirements.txt" ]; then pip install -r requirements.txt; fi
+          if [ -d "tests" ]; then
+            python3 -m unittest discover tests || pytest -q
+          elif [ -f "simulate_pipeline.py" ]; then
+            python3 simulate_pipeline.py
           fi
